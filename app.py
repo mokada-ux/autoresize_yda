@@ -20,22 +20,18 @@ if 'uploader_key' not in st.session_state:
 
 def add_uploaded_files():
     """アップロードされたファイルをセッション状態に追加し、アップローダーをリセットする"""
-    # 現在のアップローダーの動的なキーを取得
     current_key = f"uploader_{st.session_state['uploader_key']}"
     
-    # そのキーの中にファイルがあるか確認
     if current_key in st.session_state and st.session_state[current_key]:
         for uploaded_file in st.session_state[current_key]:
-            # 既存リストに同じファイル名がないか確認（重複回避）
+            # 重複チェック
             if not any(f['name'] == uploaded_file.name for f in st.session_state['file_list']):
-                # 画像を開いてメモリに保持（バイトデータとして）
                 img_bytes = uploaded_file.getvalue()
                 st.session_state['file_list'].append({
                     'name': uploaded_file.name,
                     'data': img_bytes
                 })
-        
-        # 次回のためにキーを更新して、アップローダーをリセット（空にする）
+        # キーを更新してアップローダーをリセット
         st.session_state['uploader_key'] += 1
 
 def remove_file(index):
@@ -43,10 +39,11 @@ def remove_file(index):
     st.session_state['file_list'].pop(index)
 
 def process_with_opencv(pil_image):
-    """OpenCVによるシャープネス処理"""
+    """OpenCVによるシャープネス処理 (必ず適用)"""
     img_array = np.array(pil_image)
     cv_image = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
 
+    # シャープネスカーネル
     kernel = np.array([[0, -1, 0],
                        [-1, 5, -1],
                        [0, -1, 0]])
@@ -75,8 +72,7 @@ with st.sidebar:
     st.markdown("### 2. ファイル名")
     start_number_input = st.text_input("開始番号 (No.)", value="", placeholder="例: 1")
     
-    st.markdown("### 3. オプション")
-    use_sharpen = st.checkbox("くっきり補正 (OpenCV)", value=True)
+    st.info("※ 画像は自動的に「くっきり補正」されます。")
 
     st.divider()
     
@@ -107,14 +103,17 @@ with st.sidebar:
                         else:
                             image = image.convert("RGB")
 
-                        if use_sharpen:
-                            image = process_with_opencv(image)
+                        # --- OpenCV処理 (強制実行) ---
+                        image = process_with_opencv(image)
                         
+                        # リサイズ
                         resized_image = ImageOps.fit(image, target_size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
                         
+                        # ファイル名生成
                         current_no = start_number + i
                         new_filename = f"{file_prefix}{current_no:03d}.jpg"
 
+                        # 保存
                         img_byte_arr = io.BytesIO()
                         resized_image.save(
                             img_byte_arr, 
@@ -152,8 +151,6 @@ with st.sidebar:
 st.title("🖼️ 画像一括リサイズツール")
 
 # --- 1. 画像アップロードエリア (上部固定) ---
-# ファイルアップローダー
-# on_changeで add_uploaded_files を呼び出し、動的なkeyを使って値を取得します
 st.file_uploader(
     "ここに画像をドラッグ＆ドロップ (追加アップロード可能)", 
     type=['png', 'jpg', 'jpeg', 'webp'], 
@@ -164,28 +161,30 @@ st.file_uploader(
 
 st.divider()
 
-# --- 2. 画像リスト表示エリア (縦スクロール) ---
+# --- 2. 画像リスト表示エリア (2列グリッド) ---
 st.markdown(f"### 📋 アップロード済みリスト ({len(st.session_state['file_list'])}枚)")
 
 if st.session_state['file_list']:
+    # 2列のカラムを作成
+    cols = st.columns(2)
+    
     for index, file_info in enumerate(st.session_state['file_list']):
-        with st.container():
-            col_thumb, col_name, col_del = st.columns([1, 4, 1])
-            
-            img = Image.open(io.BytesIO(file_info['data']))
-            
-            with col_thumb:
+        # インデックスの偶数/奇数で配置するカラムを決定 (0 or 1)
+        col = cols[index % 2]
+        
+        with col:
+            # 枠線のようなコンテナを作る（視覚的なまとまりのため）
+            with st.container(border=True):
+                img = Image.open(io.BytesIO(file_info['data']))
+                
+                # 画像をカラム幅いっぱいに表示
                 st.image(img, use_container_width=True)
-            
-            with col_name:
-                st.write(f"**{file_info['name']}**")
-                st.caption(f"Original: {img.width} x {img.height}")
-            
-            with col_del:
-                if st.button("❌ 削除", key=f"del_{index}"):
+                
+                # ファイル名と削除ボタン
+                st.caption(f"{file_info['name']} ({img.width}x{img.height})")
+                if st.button("❌ 削除", key=f"del_{index}", use_container_width=True):
                     remove_file(index)
                     st.rerun()
-            
-            st.markdown("---")
+
 else:
     st.info("まだ画像がありません。上部からアップロードしてください。")
