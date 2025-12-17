@@ -10,43 +10,51 @@ import os
 # --- ページ設定 ---
 st.set_page_config(page_title="画像リサイズアプリ", layout="wide")
 
-# --- CSSスタイル設定 (UI調整用) ---
+# --- CSSスタイル設定 (UI調整・完全固定用) ---
 st.markdown("""
     <style>
     /* 1. 全体の余白を調整 */
     .block-container {
-        padding-top: 1rem !important;
+        padding-top: 0rem !important; /* 上部余白を完全削除 */
         padding-bottom: 5rem !important;
     }
     
-    /* 2. 固定ヘッダーエリアの設定（ここを修正・強化） */
-    /* data-testid="stVerticalBlock" の直下にある、fixed-header-markerを含むdivをターゲットにする */
+    /* 2. 固定ヘッダーエリアの強力なスタイル設定 */
+    /* data-testid="stVerticalBlock" の直下にある、fixed-header-markerを含むdivをターゲット */
     div[data-testid="stVerticalBlock"] > div:has(div.fixed-header-marker) {
         position: sticky;
-        top: 2.875rem; /* ツールバーの下に配置 */
+        top: 2.875rem; /* ツールバーの高さ分確保 */
         
-        /* 背景色を強制的に不透明にする（変数 + 重要指定） */
-        background-color: var(--background-color) !important; 
+        /* 【重要】背景色の指定 */
+        /* 変数が効かない場合のために、明示的にテーマの背景色（通常は白か黒）を描画させる */
+        background-color: var(--background-color, #0e1117); 
         
-        /* 重なり順を最前面にする */
-        z-index: 999999 !important;
+        /* それでも透ける場合のために、背景画像を無地でセットして強制塗りつぶし */
+        background-image: linear-gradient(var(--background-color), var(--background-color));
         
-        /* 余白と境界線 */
-        padding-top: 1rem;
-        padding-bottom: 1rem;
-        border-bottom: 1px solid rgba(128, 128, 128, 0.2); 
+        /* 重なり順を最強にする */
+        z-index: 999999;
+        
+        /* 境界線と余白 */
+        padding-top: 2rem; /* 上に少し余白を持たせる */
+        padding-bottom: 1.5rem;
+        border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+        
+        /* コンテナの形を整える */
+        display: block;
+        width: 100%;
     }
-    
-    /* ダークモード等の背景抜け対策として、念のため擬似要素でも背景を敷く */
+
+    /* 3. 要素間の隙間から透けるのを防ぐためのダメ押し設定 */
     div[data-testid="stVerticalBlock"] > div:has(div.fixed-header-marker)::before {
         content: "";
         position: absolute;
         top: 0;
-        left: 0;
-        width: 100%;
+        left: -100px; /* 横幅いっぱいに広げるための調整 */
+        width: 200%; /* 画面幅より大きくして確実にカバー */
         height: 100%;
-        background-color: var(--background-color);
-        z-index: -1;
+        background-color: var(--background-color, #0e1117);
+        z-index: -1; /* コンテンツの後ろに配置 */
     }
     </style>
 """, unsafe_allow_html=True)
@@ -189,7 +197,7 @@ with st.sidebar:
 # ==========================================
 
 # --- 1. 固定ヘッダーエリア ---
-# このコンテナはCSSによって画面上部に固定され、不透明な背景色が付きます
+# このコンテナはCSSによって強力に固定・不透明化されます
 with st.container():
     # CSS適用のための目印
     st.markdown('<div class="fixed-header-marker"></div>', unsafe_allow_html=True)
@@ -209,8 +217,8 @@ with st.container():
     st.markdown(f"### 📋 アップロード済みリスト ({len(st.session_state['file_list'])}枚)")
 
 # --- 2. 画像リスト表示エリア (スクロール可) ---
-# 固定エリアの下に隠れるようになります
 if st.session_state['file_list']:
+    # 2列のカラムを作成
     cols = st.columns(2)
     
     for index, file_info in enumerate(st.session_state['file_list']):
@@ -220,12 +228,15 @@ if st.session_state['file_list']:
             with st.container(border=True):
                 img = Image.open(io.BytesIO(file_info['data']))
                 
+                # サムネイル表示
                 st.image(img, use_container_width=True)
                 
+                # ファイル名と削除ボタン
                 st.caption(f"{file_info['name']} ({img.width}x{img.height})")
                 if st.button("❌ 削除", key=f"del_{index}", use_container_width=True):
                     remove_file(index)
                     st.rerun()
 
 else:
+    # リストがない場合の余白調整
     st.markdown("")
