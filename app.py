@@ -10,10 +10,10 @@ import os
 # --- ページ設定 ---
 st.set_page_config(page_title="画像リサイズアプリ", layout="wide")
 
-# --- CSSスタイル設定 (限界まで上に配置・完全固定) ---
+# --- CSSスタイル設定 (UI調整・完全固定用) ---
 st.markdown("""
     <style>
-    /* 1. Streamlit標準のヘッダー（バー）を非表示にする */
+    /* 1. Streamlit標準のヘッダー（バー）を非表示 */
     header {
         visibility: hidden;
         height: 0;
@@ -21,23 +21,22 @@ st.markdown("""
     
     /* 2. 全体の余白を限界まで削る */
     .block-container {
-        padding-top: 0rem !important; /* 上部余白を完全削除 */
+        padding-top: 0rem !important;
         padding-bottom: 5rem !important;
-        margin-top: -3rem !important; /* さらにマイナスマージンで強制的に上に引き上げる */
+        margin-top: -3rem !important;
     }
     
     /* 3. 固定ヘッダーエリアの設定 */
     div[data-testid="stVerticalBlock"] > div:has(div.fixed-header-marker) {
         position: sticky;
-        top: 0rem !important; /* 画面の最上端（0px）に張り付ける */
+        top: 0rem !important;
         
-        /* 背景色の指定（透過防止） */
+        /* 背景色設定（透過防止） */
         background-color: var(--background-color, #0e1117); 
         background-image: linear-gradient(var(--background-color), var(--background-color));
         
         z-index: 999999;
         
-        /* 内部の余白調整 */
         padding-top: 1rem;
         padding-bottom: 1rem;
         border-bottom: 1px solid rgba(128, 128, 128, 0.2);
@@ -84,12 +83,39 @@ def remove_file(index):
     st.session_state['file_list'].pop(index)
 
 def process_with_opencv(pil_image):
+    """OpenCVによるシャープネス処理"""
     img_array = np.array(pil_image)
     cv_image = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
     kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
     cv_image = cv2.filter2D(cv_image, -1, kernel)
     cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
     return Image.fromarray(cv_image)
+
+def transform_image(image_bytes, target_size):
+    """
+    バイトデータを受け取り、以下の処理を一括で行ってPIL画像を返す関数
+    1. RGB変換 (透過対応)
+    2. OpenCVくっきり補正
+    3. 中心リサイズ
+    """
+    image = Image.open(io.BytesIO(image_bytes))
+
+    # 透過処理とRGB変換
+    if image.mode in ("RGBA", "P"):
+        image = image.convert("RGBA")
+        background = Image.new("RGB", image.size, (255, 255, 255))
+        background.paste(image, mask=image.split()[3])
+        image = background
+    else:
+        image = image.convert("RGB")
+
+    # OpenCV処理
+    image = process_with_opencv(image)
+
+    # リサイズ (LANCZOS)
+    resized_image = ImageOps.fit(image, target_size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
+    
+    return resized_image
 
 # ==========================================
 # レイアウト：サイドバー（設定）
@@ -128,23 +154,18 @@ with st.sidebar:
                 with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
                     total_files = len(st.session_state['file_list'])
                     for i, file_info in enumerate(st.session_state['file_list']):
-                        image = Image.open(io.BytesIO(file_info['data']))
-                        if image.mode in ("RGBA", "P"):
-                            image = image.convert("RGBA")
-                            background = Image.new("RGB", image.size, (255, 255, 255))
-                            background.paste(image, mask=image.split()[3])
-                            image = background
-                        else:
-                            image = image.convert("RGB")
-
-                        image = process_with_opencv(image)
-                        resized_image = ImageOps.fit(image, target_size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
                         
+                        # --- 共通の変換関数を使用 ---
+                        resized_image = transform_image(file_info['data'], target_size)
+                        
+                        # ファイル名生成
                         current_no = start_number + i
                         new_filename = f"{file_prefix}{current_no:03d}.jpg"
 
+                        # 保存
                         img_byte_arr = io.BytesIO()
                         resized_image.save(img_byte_arr, format='JPEG', quality=100, subsampling=0)
+                        
                         zf.writestr(new_filename, img_byte_arr.getvalue())
                         progress_bar.progress((i + 1) / total_files)
 
@@ -190,11 +211,22 @@ if st.session_state['file_list']:
         col = cols[index % 2]
         with col:
             with st.container(border=True):
-                img = Image.open(io.BytesIO(file_info['data']))
-                st.image(img, use_container_width=True)
-                st.caption(f"{file_info['name']} ({img.width}x{img.height})")
-                if st.button("❌ 削除", key=f"del_{index}", use_container_width=True):
-                    remove_file(index)
-                    st.rerun()
+                # ----------------------------------------------------
+                # ここで変換後の画像を作成して表示
+                # サイドバーで選択中の target_size が適用されます
+                # ----------------------------------------------------
+                try:
+                    preview_img = transform_image(file_info['data'], target_size)
+                    
+                    st.image(preview_img, use_container_width=True)
+                    
+                    # 補足情報: 元ファイル名と変換後サイズ
+                    st.caption(f"{file_info['name']} → **{preview_img.width}x{preview_img.height}**")
+                    
+                    if st.button("❌ 削除", key=f"del_{index}", use_container_width=True):
+                        remove_file(index)
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"プレビューエラー: {e}")
 else:
     st.markdown("")
