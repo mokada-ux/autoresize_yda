@@ -11,17 +11,17 @@ import os
 st.set_page_config(page_title="画像リサイズアプリ", layout="wide")
 
 # --- CSSスタイル設定 (固定ヘッダー用) ---
-# data-testid="stVerticalBlock" の中にある、特定のマーカー(fixed-header-marker)を含むdivを固定する
+# 修正点: background-color を white から var(--background-color) に変更
 st.markdown("""
     <style>
     div[data-testid="stVerticalBlock"] > div:has(div.fixed-header-marker) {
         position: sticky;
-        top: 2.875rem; /* Streamlitの上部バーの高さ分空ける */
-        background-color: white; /* 背景色がないと透けてしまうため指定 */
-        z-index: 999; /* 他の要素より手前に表示 */
+        top: 2.875rem; 
+        background-color: var(--background-color); /* ここを修正: テーマの背景色に合わせる */
+        z-index: 999;
         padding-top: 1rem;
         padding-bottom: 1rem;
-        border-bottom: 1px solid #f0f2f6; /* 下線で見やすく */
+        border-bottom: 1px solid rgba(128, 128, 128, 0.2); /* 境界線をうっすらと表示 */
     }
     </style>
 """, unsafe_allow_html=True)
@@ -164,9 +164,7 @@ with st.sidebar:
 # ==========================================
 
 # --- 1. 固定ヘッダーエリア ---
-# このコンテナ内の要素はスクロールしても上部に固定されます
 with st.container():
-    # CSS適用のための目印となる空のdiv
     st.markdown('<div class="fixed-header-marker"></div>', unsafe_allow_html=True)
     
     st.title("🖼️ 画像一括リサイズツール")
@@ -184,10 +182,7 @@ with st.container():
     st.markdown(f"### 📋 アップロード済みリスト ({len(st.session_state['file_list'])}枚)")
 
 # --- 2. 画像リスト表示エリア (スクロール可) ---
-# ここから下は通常の表示なので、上部が固定された状態で裏側に潜り込むようにスクロールされます
-
 if st.session_state['file_list']:
-    # 2列のカラムを作成
     cols = st.columns(2)
     
     for index, file_info in enumerate(st.session_state['file_list']):
@@ -197,15 +192,12 @@ if st.session_state['file_list']:
             with st.container(border=True):
                 img = Image.open(io.BytesIO(file_info['data']))
                 
-                # サムネイル表示
                 st.image(img, use_container_width=True)
                 
-                # ファイル名と削除ボタン
                 st.caption(f"{file_info['name']} ({img.width}x{img.height})")
                 if st.button("❌ 削除", key=f"del_{index}", use_container_width=True):
                     remove_file(index)
                     st.rerun()
 
 else:
-    # リストがない場合に隙間が空きすぎないようメッセージを表示
     st.markdown("")
