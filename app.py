@@ -66,4 +66,68 @@ def process_with_opencv(pil_image):
     cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
     return Image.fromarray(cv_image)
 
-# ---
+# --- 処理実行エリア ---
+if uploaded_files:
+    st.markdown("### 4. 処理結果")
+    
+    if st.button("変換実行"):
+        progress_bar = st.progress(0)
+        zip_buffer = io.BytesIO()
+        today_str = datetime.now().strftime('%Y%m%d')
+        zip_filename = f"{today_str}.zip"
+
+        try:
+            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+                for i, uploaded_file in enumerate(uploaded_files):
+                    # --- ファイル名の生成 ---
+                    # 現在の連番 = 開始番号 + ループ回数
+                    current_no = start_number + i
+                    
+                    # 元の拡張子を取得 (例: .jpg)
+                    original_filename = uploaded_file.name
+                    _, ext = os.path.splitext(original_filename)
+                    # 拡張子がない、または変な場合は .jpg とする安全策
+                    if not ext:
+                        ext = ".jpg"
+
+                    # 新しいファイル名: 接頭辞 + 3桁ゼロ埋め番号 + 拡張子
+                    # 例: c001.jpg
+                    new_filename = f"{file_prefix}{current_no:03d}{ext}"
+
+                    # --- 画像処理 ---
+                    image = Image.open(uploaded_file)
+                    img_format = image.format if image.format else 'JPEG'
+
+                    # OpenCV処理
+                    if use_sharpen:
+                        image = process_with_opencv(image)
+                    
+                    # 中心基準リサイズ (ImageOps.fit)
+                    resized_image = ImageOps.fit(image, target_size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
+                    
+                    # メモリ保存
+                    img_byte_arr = io.BytesIO()
+                    resized_image.save(img_byte_arr, format=img_format)
+                    
+                    # Zipに追加 (リネームした名前を使用)
+                    zf.writestr(new_filename, img_byte_arr.getvalue())
+                    
+                    progress_bar.progress((i + 1) / len(uploaded_files))
+
+            zip_buffer.seek(0)
+            
+            st.success(f"完了！ {len(uploaded_files)}枚の画像を処理しました。")
+            st.write(f"ファイル名例: `{file_prefix}{start_number:03d}{ext}` 〜 `{file_prefix}{(start_number + len(uploaded_files) - 1):03d}{ext}`")
+            
+            st.download_button(
+                label=f"📥 Zipダウンロード ({zip_filename})",
+                data=zip_buffer,
+                file_name=zip_filename,
+                mime="application/zip"
+            )
+            
+        except Exception as e:
+            st.error(f"エラーが発生しました: {e}")
+
+else:
+    st.info("画像をアップロードしてください。")
