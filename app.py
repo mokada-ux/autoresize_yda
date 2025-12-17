@@ -194,7 +194,7 @@ with st.sidebar:
 # --- 1. 固定ヘッダーエリア ---
 with st.container():
     st.markdown('<div class="fixed-header-marker"></div>', unsafe_allow_html=True)
-    st.title("🖼️ 画像一括リサイズツール")
+    st.title("画像リサイズアプリ_YDA特化")
     st.file_uploader(
         "ここに画像をドラッグ＆ドロップ (追加アップロード可能)", 
         type=['png', 'jpg', 'jpeg', 'webp'], 
