@@ -10,6 +10,22 @@ import os
 # --- ページ設定 ---
 st.set_page_config(page_title="画像リサイズアプリ", layout="wide")
 
+# --- CSSスタイル設定 (固定ヘッダー用) ---
+# data-testid="stVerticalBlock" の中にある、特定のマーカー(fixed-header-marker)を含むdivを固定する
+st.markdown("""
+    <style>
+    div[data-testid="stVerticalBlock"] > div:has(div.fixed-header-marker) {
+        position: sticky;
+        top: 2.875rem; /* Streamlitの上部バーの高さ分空ける */
+        background-color: white; /* 背景色がないと透けてしまうため指定 */
+        z-index: 999; /* 他の要素より手前に表示 */
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #f0f2f6; /* 下線で見やすく */
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 # --- セッション状態の初期化 ---
 if 'file_list' not in st.session_state:
     st.session_state['file_list'] = []
@@ -35,7 +51,6 @@ def add_uploaded_files():
         st.session_state['uploader_key'] += 1
 
 def remove_file(index):
-    """指定したインデックスの画像をリストから削除"""
     st.session_state['file_list'].pop(index)
 
 def process_with_opencv(pil_image):
@@ -43,7 +58,6 @@ def process_with_opencv(pil_image):
     img_array = np.array(pil_image)
     cv_image = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
 
-    # シャープネスカーネル
     kernel = np.array([[0, -1, 0],
                        [-1, 5, -1],
                        [0, -1, 0]])
@@ -72,7 +86,7 @@ with st.sidebar:
     st.markdown("### 2. ファイル名")
     start_number_input = st.text_input("開始番号 (No.)", value="", placeholder="例: 1")
     
-    st.info("※ 画像は自動的に「くっきり補正」されます。")
+    st.info("※ くっきり補正が自動適用されます。")
 
     st.divider()
     
@@ -103,7 +117,7 @@ with st.sidebar:
                         else:
                             image = image.convert("RGB")
 
-                        # --- OpenCV処理 (強制実行) ---
+                        # OpenCV処理
                         image = process_with_opencv(image)
                         
                         # リサイズ
@@ -148,36 +162,42 @@ with st.sidebar:
 # ==========================================
 # メインエリア
 # ==========================================
-st.title("🖼️ 画像一括リサイズツール")
 
-# --- 1. 画像アップロードエリア (上部固定) ---
-st.file_uploader(
-    "ここに画像をドラッグ＆ドロップ (追加アップロード可能)", 
-    type=['png', 'jpg', 'jpeg', 'webp'], 
-    accept_multiple_files=True,
-    key=f"uploader_{st.session_state['uploader_key']}", 
-    on_change=add_uploaded_files
-)
+# --- 1. 固定ヘッダーエリア ---
+# このコンテナ内の要素はスクロールしても上部に固定されます
+with st.container():
+    # CSS適用のための目印となる空のdiv
+    st.markdown('<div class="fixed-header-marker"></div>', unsafe_allow_html=True)
+    
+    st.title("🖼️ 画像一括リサイズツール")
+    
+    # アップローダー
+    st.file_uploader(
+        "ここに画像をドラッグ＆ドロップ (追加アップロード可能)", 
+        type=['png', 'jpg', 'jpeg', 'webp'], 
+        accept_multiple_files=True,
+        key=f"uploader_{st.session_state['uploader_key']}", 
+        on_change=add_uploaded_files
+    )
+    
+    # リストヘッダー
+    st.markdown(f"### 📋 アップロード済みリスト ({len(st.session_state['file_list'])}枚)")
 
-st.divider()
-
-# --- 2. 画像リスト表示エリア (2列グリッド) ---
-st.markdown(f"### 📋 アップロード済みリスト ({len(st.session_state['file_list'])}枚)")
+# --- 2. 画像リスト表示エリア (スクロール可) ---
+# ここから下は通常の表示なので、上部が固定された状態で裏側に潜り込むようにスクロールされます
 
 if st.session_state['file_list']:
     # 2列のカラムを作成
     cols = st.columns(2)
     
     for index, file_info in enumerate(st.session_state['file_list']):
-        # インデックスの偶数/奇数で配置するカラムを決定 (0 or 1)
         col = cols[index % 2]
         
         with col:
-            # 枠線のようなコンテナを作る（視覚的なまとまりのため）
             with st.container(border=True):
                 img = Image.open(io.BytesIO(file_info['data']))
                 
-                # 画像をカラム幅いっぱいに表示
+                # サムネイル表示
                 st.image(img, use_container_width=True)
                 
                 # ファイル名と削除ボタン
@@ -187,4 +207,5 @@ if st.session_state['file_list']:
                     st.rerun()
 
 else:
-    st.info("まだ画像がありません。上部からアップロードしてください。")
+    # リストがない場合に隙間が空きすぎないようメッセージを表示
+    st.markdown("")
