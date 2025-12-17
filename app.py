@@ -13,25 +13,40 @@ st.set_page_config(page_title="画像リサイズアプリ", layout="wide")
 # --- CSSスタイル設定 (UI調整用) ---
 st.markdown("""
     <style>
-    /* 1. 全体の余白を限界まで削る */
+    /* 1. 全体の余白を調整 */
     .block-container {
-        padding-top: 1rem !important; /* 上部の余白を削除 */
-        padding-bottom: 5rem !important; /* 下部は少し空ける */
+        padding-top: 1rem !important;
+        padding-bottom: 5rem !important;
     }
     
-    /* 2. Streamlit標準のヘッダー（右上のメニュー等）を考慮して位置調整 */
-    /* もし右上のメニューバーも隠したい場合は header {visibility: hidden;} を追加してください */
-    
-    /* 3. 固定ヘッダーエリアの設定 */
+    /* 2. 固定ヘッダーエリアの設定（ここを修正・強化） */
     /* data-testid="stVerticalBlock" の直下にある、fixed-header-markerを含むdivをターゲットにする */
     div[data-testid="stVerticalBlock"] > div:has(div.fixed-header-marker) {
         position: sticky;
-        top: 2.875rem; /* Streamlitのツールバーの高さ分だけ下げる（被らないように） */
-        background-color: var(--background-color); /* 背景色で塗りつぶして裏写りを防ぐ */
-        z-index: 9999; /* 確実に最前面に表示 */
+        top: 2.875rem; /* ツールバーの下に配置 */
+        
+        /* 背景色を強制的に不透明にする（変数 + 重要指定） */
+        background-color: var(--background-color) !important; 
+        
+        /* 重なり順を最前面にする */
+        z-index: 999999 !important;
+        
+        /* 余白と境界線 */
         padding-top: 1rem;
         padding-bottom: 1rem;
-        border-bottom: 2px solid rgba(128, 128, 128, 0.2); /* 境界線を引く */
+        border-bottom: 1px solid rgba(128, 128, 128, 0.2); 
+    }
+    
+    /* ダークモード等の背景抜け対策として、念のため擬似要素でも背景を敷く */
+    div[data-testid="stVerticalBlock"] > div:has(div.fixed-header-marker)::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: var(--background-color);
+        z-index: -1;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -174,7 +189,7 @@ with st.sidebar:
 # ==========================================
 
 # --- 1. 固定ヘッダーエリア ---
-# このコンテナはCSSによって画面上部に固定され、背景色が付きます
+# このコンテナはCSSによって画面上部に固定され、不透明な背景色が付きます
 with st.container():
     # CSS適用のための目印
     st.markdown('<div class="fixed-header-marker"></div>', unsafe_allow_html=True)
@@ -194,9 +209,8 @@ with st.container():
     st.markdown(f"### 📋 アップロード済みリスト ({len(st.session_state['file_list'])}枚)")
 
 # --- 2. 画像リスト表示エリア (スクロール可) ---
-# リストがある場合のみ表示
+# 固定エリアの下に隠れるようになります
 if st.session_state['file_list']:
-    # 2列のカラム
     cols = st.columns(2)
     
     for index, file_info in enumerate(st.session_state['file_list']):
@@ -214,5 +228,4 @@ if st.session_state['file_list']:
                     st.rerun()
 
 else:
-    # 隙間調整用の空要素
     st.markdown("")
