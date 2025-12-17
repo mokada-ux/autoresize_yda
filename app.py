@@ -8,7 +8,7 @@ import numpy as np
 import os
 
 # --- ページ設定 ---
-st.set_page_config(page_title="画像リサイズアプリ", layout="wide")
+st.set_page_config(page_title="画像リサイズアプリ_YDA特化", layout="wide")
 
 # --- CSSスタイル設定 (UI調整・完全固定用) ---
 st.markdown("""
