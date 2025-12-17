@@ -7,127 +7,195 @@ import cv2
 import numpy as np
 import os
 
-# ページ設定
-st.set_page_config(page_title="画像リサイズ & 連番リネーム", layout="centered")
+# --- ページ設定 ---
+st.set_page_config(page_title="画像リサイズアプリ", layout="wide")
 
-st.title("🖼️ 画像リサイズ & 連番リネーム")
-st.write("画像をアップロードすると、指定サイズにリサイズし、ルールに従ってリネームしてZip化します。")
+# --- セッション状態の初期化（画像の追加・削除用） ---
+if 'file_list' not in st.session_state:
+    st.session_state['file_list'] = []
+if 'uploader_key' not in st.session_state:
+    st.session_state['uploader_key'] = 0
 
-# --- 設定エリア ---
-st.markdown("### 1. リサイズ設定")
+# --- 関数定義 ---
 
-# サイズと接頭辞の定義
-# キー: 表示名, 値: {"size": (幅, 高さ), "prefix": 接頭辞}
-SIZE_SETTINGS = {
-    "1200 × 628 (Webサイト・OGP等)": {"size": (1200, 628), "prefix": "c"},
-    "1080 × 1080 (Instagram等)": {"size": (1080, 1080), "prefix": "s"},
-    "600 × 400 (ブログサムネイル等)": {"size": (600, 400), "prefix": "m"}
-}
+def add_uploaded_files():
+    """アップロードされたファイルをセッション状態に追加し、アップローダーをリセットする"""
+    if st.session_state.uploaded_temp:
+        for uploaded_file in st.session_state.uploaded_temp:
+            # 既存リストに同じファイル名がないか確認（重複回避）
+            if not any(f['name'] == uploaded_file.name for f in st.session_state['file_list']):
+                # 画像を開いてメモリに保持（バイトデータとして）
+                img_bytes = uploaded_file.getvalue()
+                st.session_state['file_list'].append({
+                    'name': uploaded_file.name,
+                    'data': img_bytes
+                })
+        # アップローダーをリセットするためにキーを更新
+        st.session_state['uploader_key'] += 1
 
-selected_option_key = st.selectbox("サイズを選択", list(SIZE_SETTINGS.keys()))
-selected_setting = SIZE_SETTINGS[selected_option_key]
-target_size = selected_setting["size"]
-file_prefix = selected_setting["prefix"]
+def remove_file(index):
+    """指定したインデックスの画像をリストから削除"""
+    st.session_state['file_list'].pop(index)
 
-# 連番設定
-st.markdown("### 2. ファイル名設定")
-col1, col2 = st.columns(2)
-with col1:
-    start_number = st.number_input("開始番号 (No.)", min_value=1, value=1, step=1, help="ここに入力した番号から連番が始まります。")
-
-with col2:
-    st.info(f"命名プレビュー: **{file_prefix}{start_number:03d}.jpg** ...")
-
-# OpenCV処理のオプション
-use_sharpen = st.checkbox("画像をくっきりさせる (OpenCV使用)", value=True)
-
-# --- アップロードエリア ---
-st.markdown("### 3. 画像をアップロード")
-uploaded_files = st.file_uploader(
-    "複数の画像を選択できます", 
-    type=['png', 'jpg', 'jpeg'], 
-    accept_multiple_files=True
-)
-
-# --- 内部関数: OpenCV処理 ---
 def process_with_opencv(pil_image):
+    """OpenCVによるシャープネス処理"""
     # PIL -> OpenCV (BGR)
     img_array = np.array(pil_image)
     cv_image = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
 
-    # シャープネス処理
-    if use_sharpen:
-        kernel = np.array([[0, -1, 0],
-                           [-1, 5, -1],
-                           [0, -1, 0]])
-        cv_image = cv2.filter2D(cv_image, -1, kernel)
+    # シャープネスカーネル（適度に適用）
+    kernel = np.array([[0, -1, 0],
+                       [-1, 5, -1],
+                       [0, -1, 0]])
+    cv_image = cv2.filter2D(cv_image, -1, kernel)
 
     # OpenCV (BGR) -> PIL
     cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
     return Image.fromarray(cv_image)
 
-# --- 処理実行エリア ---
-if uploaded_files:
-    st.markdown("### 4. 処理結果")
+# ==========================================
+# レイアウト：サイドバー（設定）
+# ==========================================
+with st.sidebar:
+    st.header("⚙️ 設定")
     
-    if st.button("変換実行"):
-        progress_bar = st.progress(0)
-        zip_buffer = io.BytesIO()
-        today_str = datetime.now().strftime('%Y%m%d')
-        zip_filename = f"{today_str}.zip"
+    st.markdown("### 1. リサイズサイズ")
+    SIZE_SETTINGS = {
+        "1200 × 628 (Web/OGP)": {"size": (1200, 628), "prefix": "c"},
+        "1080 × 1080 (Insta)": {"size": (1080, 1080), "prefix": "s"},
+        "600 × 400 (Blog)": {"size": (600, 400), "prefix": "m"}
+    }
+    selected_option_key = st.selectbox("サイズを選択", list(SIZE_SETTINGS.keys()))
+    selected_setting = SIZE_SETTINGS[selected_option_key]
+    target_size = selected_setting["size"]
+    file_prefix = selected_setting["prefix"]
 
-        try:
-            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-                for i, uploaded_file in enumerate(uploaded_files):
-                    # --- ファイル名の生成 ---
-                    # 現在の連番 = 開始番号 + ループ回数
-                    current_no = start_number + i
-                    
-                    # 元の拡張子を取得 (例: .jpg)
-                    original_filename = uploaded_file.name
-                    _, ext = os.path.splitext(original_filename)
-                    # 拡張子がない、または変な場合は .jpg とする安全策
-                    if not ext:
-                        ext = ".jpg"
+    st.markdown("### 2. ファイル名")
+    # デフォルトは空白
+    start_number_input = st.text_input("開始番号 (No.)", value="", placeholder="例: 1")
+    
+    st.markdown("### 3. オプション")
+    use_sharpen = st.checkbox("くっきり補正 (OpenCV)", value=True)
 
-                    # 新しいファイル名: 接頭辞 + 3桁ゼロ埋め番号 + 拡張子
-                    # 例: c001.jpg
-                    new_filename = f"{file_prefix}{current_no:03d}{ext}"
+    st.divider()
+    
+    # 実行ボタンエリア（サイドバー下部）
+    # 開始番号のバリデーション
+    is_valid_number = start_number_input.isdigit()
+    
+    if is_valid_number and st.session_state['file_list']:
+        if st.button("変換してZipを作成", type="primary", use_container_width=True):
+            # --- 処理実行 ---
+            start_number = int(start_number_input)
+            progress_bar = st.progress(0)
+            zip_buffer = io.BytesIO()
+            today_str = datetime.now().strftime('%Y%m%d')
+            zip_filename = f"{today_str}.zip"
 
-                    # --- 画像処理 ---
-                    image = Image.open(uploaded_file)
-                    img_format = image.format if image.format else 'JPEG'
+            try:
+                with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+                    total_files = len(st.session_state['file_list'])
+                    
+                    for i, file_info in enumerate(st.session_state['file_list']):
+                        # 画像データの読み込み
+                        image = Image.open(io.BytesIO(file_info['data']))
+                        
+                        # --- 強制的にRGBモードに変換（JPG保存のため必須） ---
+                        # 透過PNGなどの場合、背景を白にする処理
+                        if image.mode in ("RGBA", "P"):
+                            image = image.convert("RGBA")
+                            background = Image.new("RGB", image.size, (255, 255, 255))
+                            background.paste(image, mask=image.split()[3]) # 3 is alpha channel
+                            image = background
+                        else:
+                            image = image.convert("RGB")
 
-                    # OpenCV処理
-                    if use_sharpen:
-                        image = process_with_opencv(image)
-                    
-                    # 中心基準リサイズ (ImageOps.fit)
-                    resized_image = ImageOps.fit(image, target_size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
-                    
-                    # メモリ保存
-                    img_byte_arr = io.BytesIO()
-                    resized_image.save(img_byte_arr, format=img_format)
-                    
-                    # Zipに追加 (リネームした名前を使用)
-                    zf.writestr(new_filename, img_byte_arr.getvalue())
-                    
-                    progress_bar.progress((i + 1) / len(uploaded_files))
+                        # OpenCV処理
+                        if use_sharpen:
+                            image = process_with_opencv(image)
+                        
+                        # リサイズ (LANCZOS: 高品質リサンプリング)
+                        resized_image = ImageOps.fit(image, target_size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
+                        
+                        # --- ファイル名生成 ---
+                        current_no = start_number + i
+                        new_filename = f"{file_prefix}{current_no:03d}.jpg" # 強制的にjpg
 
-            zip_buffer.seek(0)
+                        # --- 最高画質で保存 ---
+                        img_byte_arr = io.BytesIO()
+                        resized_image.save(
+                            img_byte_arr, 
+                            format='JPEG', 
+                            quality=100,      # 最高画質 (1-100)
+                            subsampling=0     # 色情報の圧縮なし（4:4:4）
+                        )
+                        
+                        # Zipに追加
+                        zf.writestr(new_filename, img_byte_arr.getvalue())
+                        progress_bar.progress((i + 1) / total_files)
+
+                zip_buffer.seek(0)
+                st.success("完了しました！")
+                st.download_button(
+                    label=f"📥 Zipをダウンロード",
+                    data=zip_buffer,
+                    file_name=zip_filename,
+                    mime="application/zip",
+                    type="primary",
+                    use_container_width=True
+                )
+                
+            except Exception as e:
+                st.error(f"エラー: {e}")
+    else:
+        if not st.session_state['file_list']:
+            st.info("画像をアップロードしてください")
+        elif not is_valid_number:
+            st.warning("開始番号を入力してください（半角数字）")
+
+
+# ==========================================
+# メインエリア
+# ==========================================
+st.title("🖼️ 画像一括リサイズツール")
+
+# --- 1. 画像アップロードエリア (上部固定) ---
+st.file_uploader(
+    "ここに画像をドラッグ＆ドロップ (追加アップロード可能)", 
+    type=['png', 'jpg', 'jpeg', 'webp'], 
+    accept_multiple_files=True,
+    key=f"uploader_{st.session_state['uploader_key']}", # キーを変えることでリセットするテクニック
+    on_change=add_uploaded_files, # ファイル選択時に自動でリストに追加
+    key_label="uploaded_temp" # session_stateに一時保存されるキー
+)
+
+st.divider()
+
+# --- 2. 画像リスト表示エリア (縦スクロール) ---
+st.markdown(f"### 📋 アップロード済みリスト ({len(st.session_state['file_list'])}枚)")
+
+if st.session_state['file_list']:
+    # グリッド表示の作成 (サムネイル + 削除ボタン)
+    for index, file_info in enumerate(st.session_state['file_list']):
+        with st.container():
+            col_thumb, col_name, col_del = st.columns([1, 4, 1])
             
-            st.success(f"完了！ {len(uploaded_files)}枚の画像を処理しました。")
-            st.write(f"ファイル名例: `{file_prefix}{start_number:03d}{ext}` 〜 `{file_prefix}{(start_number + len(uploaded_files) - 1):03d}{ext}`")
+            # 画像データの読み込み
+            img = Image.open(io.BytesIO(file_info['data']))
             
-            st.download_button(
-                label=f"📥 Zipダウンロード ({zip_filename})",
-                data=zip_buffer,
-                file_name=zip_filename,
-                mime="application/zip"
-            )
+            with col_thumb:
+                st.image(img, use_container_width=True)
             
-        except Exception as e:
-            st.error(f"エラーが発生しました: {e}")
-
+            with col_name:
+                st.write(f"**元ファイル名:** {file_info['name']}")
+                st.caption(f"サイズ: {img.width} x {img.height}")
+            
+            with col_del:
+                # 削除ボタン: クリックするとremove_fileが呼ばれ再描画される
+                if st.button("❌ 削除", key=f"del_{index}"):
+                    remove_file(index)
+                    st.rerun() # 即座に画面更新
+            
+            st.markdown("---") # 区切り線
 else:
-    st.info("画像をアップロードしてください。")
+    st.info("まだ画像がありません。上部からアップロードしてください。")
