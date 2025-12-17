@@ -10,18 +10,28 @@ import os
 # --- ページ設定 ---
 st.set_page_config(page_title="画像リサイズアプリ", layout="wide")
 
-# --- CSSスタイル設定 (固定ヘッダー用) ---
-# 修正点: background-color を white から var(--background-color) に変更
+# --- CSSスタイル設定 (UI調整用) ---
 st.markdown("""
     <style>
+    /* 1. 全体の余白を限界まで削る */
+    .block-container {
+        padding-top: 1rem !important; /* 上部の余白を削除 */
+        padding-bottom: 5rem !important; /* 下部は少し空ける */
+    }
+    
+    /* 2. Streamlit標準のヘッダー（右上のメニュー等）を考慮して位置調整 */
+    /* もし右上のメニューバーも隠したい場合は header {visibility: hidden;} を追加してください */
+    
+    /* 3. 固定ヘッダーエリアの設定 */
+    /* data-testid="stVerticalBlock" の直下にある、fixed-header-markerを含むdivをターゲットにする */
     div[data-testid="stVerticalBlock"] > div:has(div.fixed-header-marker) {
         position: sticky;
-        top: 2.875rem; 
-        background-color: var(--background-color); /* ここを修正: テーマの背景色に合わせる */
-        z-index: 999;
+        top: 2.875rem; /* Streamlitのツールバーの高さ分だけ下げる（被らないように） */
+        background-color: var(--background-color); /* 背景色で塗りつぶして裏写りを防ぐ */
+        z-index: 9999; /* 確実に最前面に表示 */
         padding-top: 1rem;
         padding-bottom: 1rem;
-        border-bottom: 1px solid rgba(128, 128, 128, 0.2); /* 境界線をうっすらと表示 */
+        border-bottom: 2px solid rgba(128, 128, 128, 0.2); /* 境界線を引く */
     }
     </style>
 """, unsafe_allow_html=True)
@@ -164,7 +174,9 @@ with st.sidebar:
 # ==========================================
 
 # --- 1. 固定ヘッダーエリア ---
+# このコンテナはCSSによって画面上部に固定され、背景色が付きます
 with st.container():
+    # CSS適用のための目印
     st.markdown('<div class="fixed-header-marker"></div>', unsafe_allow_html=True)
     
     st.title("🖼️ 画像一括リサイズツール")
@@ -182,7 +194,9 @@ with st.container():
     st.markdown(f"### 📋 アップロード済みリスト ({len(st.session_state['file_list'])}枚)")
 
 # --- 2. 画像リスト表示エリア (スクロール可) ---
+# リストがある場合のみ表示
 if st.session_state['file_list']:
+    # 2列のカラム
     cols = st.columns(2)
     
     for index, file_info in enumerate(st.session_state['file_list']):
@@ -200,4 +214,5 @@ if st.session_state['file_list']:
                     st.rerun()
 
 else:
+    # 隙間調整用の空要素
     st.markdown("")
