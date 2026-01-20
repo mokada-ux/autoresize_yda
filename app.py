@@ -8,7 +8,6 @@ import numpy as np
 import os
 
 # --- ページ設定 ---
-# initial_sidebar_state="expanded" で、可能な限り開いた状態で起動
 st.set_page_config(
     page_title="画像リサイズアプリ", 
     layout="wide", 
@@ -18,26 +17,32 @@ st.set_page_config(
 # --- CSSスタイル設定 ---
 st.markdown("""
     <style>
-    /* 1. Streamlit標準のヘッダー（バー）を非表示 */
-    header {
-        visibility: hidden;
-        height: 0;
+    /* 1. Streamlit標準のヘッダー調整 */
+    /* visibility: hiddenだとボタンまで消えることがあるため、装飾だけ消す方針に変更 */
+    header[data-testid="stHeader"] {
+        background-color: transparent;
+        z-index: 1; /* 固定ヘッダーより奥にする */
     }
     
-    /* 2. 全体の余白を限界まで削る */
+    /* 2. 全体の余白を調整 */
     .block-container {
         padding-top: 0rem !important;
         padding-bottom: 5rem !important;
-        margin-top: -3rem !important;
+        /* マージンをいじりすぎるとクリック判定がずれることがあるため調整 */
+        margin-top: -3rem !important; 
     }
     
-    /* 3. 固定ヘッダーエリアの設定 */
+    /* 3. 固定ヘッダーエリア（アップロード部分）の設定 */
     div[data-testid="stVerticalBlock"] > div:has(div.fixed-header-marker) {
         position: sticky;
         top: 0rem !important;
         background-color: var(--background-color, #0e1117); 
+        /* 背景色の透過防止（念入りに） */
         background-image: linear-gradient(var(--background-color), var(--background-color));
-        z-index: 999999;
+        
+        /* ボタンよりは下、コンテンツよりは上 */
+        z-index: 999990; 
+        
         padding-top: 1rem;
         padding-bottom: 1rem;
         border-bottom: 1px solid rgba(128, 128, 128, 0.2);
@@ -57,23 +62,32 @@ st.markdown("""
         z-index: -1;
     }
 
-    /* --- サイドバー関連の修正 --- */
+    /* --- サイドバー関連の重要修正 --- */
     
-    /* A. サイドバーの中にある「閉じるボタン（×）」だけを消す */
-    /* これで誤って閉じてしまうのを防ぎます */
+    /* A. サイドバー内の「閉じるボタン（×）」を消す（誤操作防止） */
     section[data-testid="stSidebar"] button[kind="header"] {
         display: none !important;
     }
     
-    /* B. 左上の「サイドバーを開くボタン（＞）」は常に表示させる */
-    /* ヘッダーを隠していても、これだけは見えるように強制表示 */
-    div[data-testid="collapsedControl"] {
-        visibility: visible !important;
+    /* B. 左上の「サイドバーを開くボタン（＞）」を強制的に最前面に表示 */
+    /* 固定ヘッダー(z-index: 999990)より手前に持ってくる */
+    [data-testid="collapsedControl"] {
         display: block !important;
-        top: 1rem !important; /* 位置調整 */
-        left: 0.5rem !important;
-        z-index: 1000000 !important; /* 最前面に */
-        color: var(--text-color) !important; /* 見やすい色に */
+        visibility: visible !important;
+        position: fixed !important; /* 画面に対して固定 */
+        top: 15px !important;
+        left: 15px !important;
+        z-index: 1000000 !important; /* 確実に最前面 */
+        
+        /* ボタンを見やすくする */
+        color: var(--text-color, black) !important;
+        background-color: rgba(128, 128, 128, 0.1); /* 薄い背景をつけて視認性アップ */
+        border-radius: 50%;
+        width: 2.5rem;
+        height: 2.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
     
     </style>
