@@ -8,8 +8,9 @@ import numpy as np
 import os
 
 # --- ページ設定 ---
+# initial_sidebar_state="expanded" で起動時からサイドバーを開く
 st.set_page_config(
-    page_title="画像リサイズアプリ", 
+    page_title="画像リサイズアプリ_YDA特化", 
     layout="wide", 
     initial_sidebar_state="expanded"
 )
@@ -17,32 +18,27 @@ st.set_page_config(
 # --- CSSスタイル設定 ---
 st.markdown("""
     <style>
-    /* 1. Streamlit標準のヘッダー調整 */
-    /* visibility: hiddenだとボタンまで消えることがあるため、装飾だけ消す方針に変更 */
+    /* 1. Streamlit標準ヘッダーを透明化して詰める */
     header[data-testid="stHeader"] {
-        background-color: transparent;
-        z-index: 1; /* 固定ヘッダーより奥にする */
+        background-color: transparent !important;
+        z-index: 1; 
+        height: 0;
     }
     
-    /* 2. 全体の余白を調整 */
+    /* 2. 全体の余白削除 */
     .block-container {
         padding-top: 0rem !important;
         padding-bottom: 5rem !important;
-        /* マージンをいじりすぎるとクリック判定がずれることがあるため調整 */
         margin-top: -3rem !important; 
     }
     
-    /* 3. 固定ヘッダーエリア（アップロード部分）の設定 */
+    /* 3. 固定ヘッダーエリアの設定 */
     div[data-testid="stVerticalBlock"] > div:has(div.fixed-header-marker) {
         position: sticky;
         top: 0rem !important;
         background-color: var(--background-color, #0e1117); 
-        /* 背景色の透過防止（念入りに） */
         background-image: linear-gradient(var(--background-color), var(--background-color));
-        
-        /* ボタンよりは下、コンテンツよりは上 */
-        z-index: 999990; 
-        
+        z-index: 999990;
         padding-top: 1rem;
         padding-bottom: 1rem;
         border-bottom: 1px solid rgba(128, 128, 128, 0.2);
@@ -50,7 +46,6 @@ st.markdown("""
         width: 100%;
     }
 
-    /* 4. 隙間埋め用 */
     div[data-testid="stVerticalBlock"] > div:has(div.fixed-header-marker)::before {
         content: "";
         position: absolute;
@@ -62,32 +57,18 @@ st.markdown("""
         z-index: -1;
     }
 
-    /* --- サイドバー関連の重要修正 --- */
+    /* --- サイドバー完全固定（閉じるボタン削除） --- */
     
-    /* A. サイドバー内の「閉じるボタン（×）」を消す（誤操作防止） */
+    /* A. サイドバー内の「閉じるボタン」を完全に消去 */
+    /* これにより、ユーザーはサイドバーを閉じることができなくなります */
     section[data-testid="stSidebar"] button[kind="header"] {
         display: none !important;
     }
     
-    /* B. 左上の「サイドバーを開くボタン（＞）」を強制的に最前面に表示 */
-    /* 固定ヘッダー(z-index: 999990)より手前に持ってくる */
+    /* B. 念のため「サイドバーを開くボタン」も非表示にしておく */
+    /* （閉じられないので開くボタンも不要になるため） */
     [data-testid="collapsedControl"] {
-        display: block !important;
-        visibility: visible !important;
-        position: fixed !important; /* 画面に対して固定 */
-        top: 15px !important;
-        left: 15px !important;
-        z-index: 1000000 !important; /* 確実に最前面 */
-        
-        /* ボタンを見やすくする */
-        color: var(--text-color, black) !important;
-        background-color: rgba(128, 128, 128, 0.1); /* 薄い背景をつけて視認性アップ */
-        border-radius: 50%;
-        width: 2.5rem;
-        height: 2.5rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        display: none !important;
     }
     
     </style>
@@ -215,7 +196,7 @@ with st.sidebar:
 # --- 1. 固定ヘッダーエリア ---
 with st.container():
     st.markdown('<div class="fixed-header-marker"></div>', unsafe_allow_html=True)
-    st.title("🖼️ 画像一括リサイズツール")
+    st.title("画像リサイズアプリ_YDA特化")
     st.file_uploader(
         "ここに画像をドラッグ＆ドロップ (追加アップロード可能)", 
         type=['png', 'jpg', 'jpeg', 'webp'], 
