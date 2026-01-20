@@ -8,14 +8,14 @@ import numpy as np
 import os
 
 # --- ページ設定 ---
-# 修正点1: initial_sidebar_state="expanded" で常に開いた状態で起動
+# initial_sidebar_state="expanded" で、可能な限り開いた状態で起動
 st.set_page_config(
     page_title="画像リサイズアプリ", 
     layout="wide", 
     initial_sidebar_state="expanded"
 )
 
-# --- CSSスタイル設定 (UI調整・完全固定・サイドバー固定用) ---
+# --- CSSスタイル設定 ---
 st.markdown("""
     <style>
     /* 1. Streamlit標準のヘッダー（バー）を非表示 */
@@ -57,16 +57,23 @@ st.markdown("""
         z-index: -1;
     }
 
-    /* --- 追加修正: サイドバーの開閉ボタンを隠して「隠せないように」する --- */
+    /* --- サイドバー関連の修正 --- */
     
-    /* サイドバー内の閉じるボタン（<）を非表示 */
+    /* A. サイドバーの中にある「閉じるボタン（×）」だけを消す */
+    /* これで誤って閉じてしまうのを防ぎます */
     section[data-testid="stSidebar"] button[kind="header"] {
         display: none !important;
     }
     
-    /* 万が一閉じてしまった場合の開くボタン（>）も非表示（操作不可にするため） */
+    /* B. 左上の「サイドバーを開くボタン（＞）」は常に表示させる */
+    /* ヘッダーを隠していても、これだけは見えるように強制表示 */
     div[data-testid="collapsedControl"] {
-        display: none !important;
+        visibility: visible !important;
+        display: block !important;
+        top: 1rem !important; /* 位置調整 */
+        left: 0.5rem !important;
+        z-index: 1000000 !important; /* 最前面に */
+        color: var(--text-color) !important; /* 見やすい色に */
     }
     
     </style>
@@ -105,10 +112,9 @@ def process_with_opencv(pil_image):
     return Image.fromarray(cv_image)
 
 def transform_image(image_bytes, target_size):
-    """画像変換処理（RGB変換 -> くっきり補正 -> リサイズ）"""
+    """画像変換処理"""
     image = Image.open(io.BytesIO(image_bytes))
 
-    # 透過処理とRGB変換
     if image.mode in ("RGBA", "P"):
         image = image.convert("RGBA")
         background = Image.new("RGB", image.size, (255, 255, 255))
@@ -117,10 +123,7 @@ def transform_image(image_bytes, target_size):
     else:
         image = image.convert("RGB")
 
-    # OpenCV処理
     image = process_with_opencv(image)
-
-    # リサイズ (LANCZOS)
     resized_image = ImageOps.fit(image, target_size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
     
     return resized_image
@@ -162,15 +165,11 @@ with st.sidebar:
                 with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
                     total_files = len(st.session_state['file_list'])
                     for i, file_info in enumerate(st.session_state['file_list']):
-                        
-                        # --- 共通の変換関数を使用 ---
                         resized_image = transform_image(file_info['data'], target_size)
                         
-                        # ファイル名生成
                         current_no = start_number + i
                         new_filename = f"{file_prefix}{current_no:03d}.jpg"
 
-                        # 保存
                         img_byte_arr = io.BytesIO()
                         resized_image.save(img_byte_arr, format='JPEG', quality=100, subsampling=0)
                         
@@ -219,17 +218,10 @@ if st.session_state['file_list']:
         col = cols[index % 2]
         with col:
             with st.container(border=True):
-                # ----------------------------------------------------
-                # ここで変換後の画像を作成して表示
-                # ----------------------------------------------------
                 try:
                     preview_img = transform_image(file_info['data'], target_size)
-                    
                     st.image(preview_img, use_container_width=True)
-                    
-                    # 補足情報: 元ファイル名と変換後サイズ
                     st.caption(f"{file_info['name']} → **{preview_img.width}x{preview_img.height}**")
-                    
                     if st.button("❌ 削除", key=f"del_{index}", use_container_width=True):
                         remove_file(index)
                         st.rerun()
