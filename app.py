@@ -21,8 +21,10 @@ st.markdown("""
     /* 1. Streamlit標準ヘッダーを透明化して詰める */
     header[data-testid="stHeader"] {
         background-color: transparent !important;
-        z-index: 1; 
+        z-index: 0; 
         height: 0;
+        visibility: hidden !important;
+        pointer-events: none !important;
     }
     
     /* 2. 全体の余白削除 */
@@ -57,16 +59,24 @@ st.markdown("""
         z-index: -1;
     }
 
-    /* --- サイドバー完全固定（閉じるボタン削除） --- */
+    /* --- サイドバーのボタン消去（いただいたHTMLに基づく修正） --- */
     
-    /* A. サイドバー内の「閉じるボタン」を完全に消去 */
-    /* これにより、ユーザーはサイドバーを閉じることができなくなります */
-    section[data-testid="stSidebar"] button[kind="header"] {
+    /* いただいたHTML: <div data-testid="stSidebarCollapseButton" ...> をターゲット */
+    div[data-testid="stSidebarCollapseButton"] {
+        display: none !important;
+        visibility: hidden !important;
+        width: 0 !important;
+        height: 0 !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
+
+    /* その中にあるボタン要素も念のため消す */
+    div[data-testid="stSidebarCollapseButton"] button {
         display: none !important;
     }
-    
-    /* B. 念のため「サイドバーを開くボタン」も非表示にしておく */
-    /* （閉じられないので開くボタンも不要になるため） */
+
+    /* 万が一のために閉じた状態のボタン（>）も消す */
     [data-testid="collapsedControl"] {
         display: none !important;
     }
