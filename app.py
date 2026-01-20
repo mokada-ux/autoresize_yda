@@ -8,9 +8,14 @@ import numpy as np
 import os
 
 # --- ページ設定 ---
-st.set_page_config(page_title="画像リサイズアプリ_YDA特化", layout="wide")
+# 修正点1: initial_sidebar_state="expanded" で常に開いた状態で起動
+st.set_page_config(
+    page_title="画像リサイズアプリ", 
+    layout="wide", 
+    initial_sidebar_state="expanded"
+)
 
-# --- CSSスタイル設定 (UI調整・完全固定用) ---
+# --- CSSスタイル設定 (UI調整・完全固定・サイドバー固定用) ---
 st.markdown("""
     <style>
     /* 1. Streamlit標準のヘッダー（バー）を非表示 */
@@ -30,17 +35,12 @@ st.markdown("""
     div[data-testid="stVerticalBlock"] > div:has(div.fixed-header-marker) {
         position: sticky;
         top: 0rem !important;
-        
-        /* 背景色設定（透過防止） */
         background-color: var(--background-color, #0e1117); 
         background-image: linear-gradient(var(--background-color), var(--background-color));
-        
         z-index: 999999;
-        
         padding-top: 1rem;
         padding-bottom: 1rem;
         border-bottom: 1px solid rgba(128, 128, 128, 0.2);
-        
         display: block;
         width: 100%;
     }
@@ -56,6 +56,19 @@ st.markdown("""
         background-color: var(--background-color, #0e1117);
         z-index: -1;
     }
+
+    /* --- 追加修正: サイドバーの開閉ボタンを隠して「隠せないように」する --- */
+    
+    /* サイドバー内の閉じるボタン（<）を非表示 */
+    section[data-testid="stSidebar"] button[kind="header"] {
+        display: none !important;
+    }
+    
+    /* 万が一閉じてしまった場合の開くボタン（>）も非表示（操作不可にするため） */
+    div[data-testid="collapsedControl"] {
+        display: none !important;
+    }
+    
     </style>
 """, unsafe_allow_html=True)
 
@@ -92,12 +105,7 @@ def process_with_opencv(pil_image):
     return Image.fromarray(cv_image)
 
 def transform_image(image_bytes, target_size):
-    """
-    バイトデータを受け取り、以下の処理を一括で行ってPIL画像を返す関数
-    1. RGB変換 (透過対応)
-    2. OpenCVくっきり補正
-    3. 中心リサイズ
-    """
+    """画像変換処理（RGB変換 -> くっきり補正 -> リサイズ）"""
     image = Image.open(io.BytesIO(image_bytes))
 
     # 透過処理とRGB変換
@@ -194,7 +202,7 @@ with st.sidebar:
 # --- 1. 固定ヘッダーエリア ---
 with st.container():
     st.markdown('<div class="fixed-header-marker"></div>', unsafe_allow_html=True)
-    st.title("画像リサイズアプリ_YDA特化")
+    st.title("🖼️ 画像一括リサイズツール")
     st.file_uploader(
         "ここに画像をドラッグ＆ドロップ (追加アップロード可能)", 
         type=['png', 'jpg', 'jpeg', 'webp'], 
@@ -213,7 +221,6 @@ if st.session_state['file_list']:
             with st.container(border=True):
                 # ----------------------------------------------------
                 # ここで変換後の画像を作成して表示
-                # サイドバーで選択中の target_size が適用されます
                 # ----------------------------------------------------
                 try:
                     preview_img = transform_image(file_info['data'], target_size)
